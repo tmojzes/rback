@@ -59,6 +59,7 @@ task install
 
 > [!NOTE]
 > If you do not have `task` installed globally, you can invoke it directly via Go's tool mechanism:
+>
 > ```sh
 > go tool task build
 > ```
@@ -96,6 +97,7 @@ kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespa
 #### Render Online
 
 You can paste the generated `.dot` content directly into browser-based Graphviz viewers such as:
+
 - [magjac.com/graphviz-visual-editor/](http://magjac.com/graphviz-visual-editor/)
 - [dreampuf.github.io/GraphvizOnline](https://dreampuf.github.io/GraphvizOnline/)
 
@@ -226,6 +228,6 @@ task clean
 
 `rback` was originally created by [Michael Hausenblas](https://github.com/mhausenblas) and maintained under `team-soteria/rback`.
 
-This fork is actively maintained by [Tomáš Mojzeš](https://github.com/tmojzes).
+This fork is actively maintained by [Tamás Mojzes](https://github.com/tmojzes).
 
 Distributed under the [Apache License 2.0](LICENSE).
