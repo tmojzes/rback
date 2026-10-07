@@ -24,7 +24,7 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: go-task/setup-task@v3
+        uses: go-task/setup-task@v2
 
       - name: Lint
         run: task lint
