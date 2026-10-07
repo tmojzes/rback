@@ -28,12 +28,32 @@ case "$(uname -s)" in
     ;;
 esac
 
+FORMAT="${RBACK_FORMAT:-svg}"
+RBACK_ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --png)
+      FORMAT="png"
+      ;;
+    --svg)
+      FORMAT="svg"
+      ;;
+    --format=*)
+      FORMAT="${arg#*=}"
+      ;;
+    *)
+      RBACK_ARGS+=("$arg")
+      ;;
+  esac
+done
+
 TMP_BASE="$(mktemp -t rback 2>/dev/null || mktemp "${TMPDIR:-/tmp}/rback-XXXXXX")"
 TMP_DOT="${TMP_BASE}.dot"
-TMP_PNG="${TMP_BASE}.png"
+TMP_OUT="${TMP_BASE}.${FORMAT}"
 trap 'rm -f "$TMP_BASE" "$TMP_DOT"' EXIT
 
 kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | \
-  rback "$@" > "$TMP_DOT" && \
-  dot "$TMP_DOT" -Tpng -Gsplines=spline -Kdot > "$TMP_PNG" && \
-  $OPEN_CMD "$TMP_PNG"
+  rback ${RBACK_ARGS[@]+"${RBACK_ARGS[@]}"} > "$TMP_DOT" && \
+  dot "$TMP_DOT" "-T${FORMAT}" -Gsplines=spline -Kdot > "$TMP_OUT" && \
+  $OPEN_CMD "$TMP_OUT"
