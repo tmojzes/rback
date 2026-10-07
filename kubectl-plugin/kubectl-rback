@@ -28,9 +28,10 @@ case "$(uname -s)" in
     ;;
 esac
 
-TMP_DOT="$(mktemp "${TMPDIR:-/tmp}/rback-XXXXXX.dot")"
-TMP_PNG="${TMP_DOT%.dot}.png"
-trap 'rm -f "$TMP_DOT"' EXIT
+TMP_BASE="$(mktemp -t rback 2>/dev/null || mktemp "${TMPDIR:-/tmp}/rback-XXXXXX")"
+TMP_DOT="${TMP_BASE}.dot"
+TMP_PNG="${TMP_BASE}.png"
+trap 'rm -f "$TMP_BASE" "$TMP_DOT"' EXIT
 
 kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | \
   rback "$@" > "$TMP_DOT" && \

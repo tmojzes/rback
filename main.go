@@ -60,6 +60,23 @@ func main() {
 	fmt.Println(g.String())
 }
 
+type stringSliceFlag []string
+
+func (s *stringSliceFlag) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringSliceFlag) Set(value string) error {
+	parts := strings.Split(value, ",")
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			*s = append(*s, trimmed)
+		}
+	}
+	return nil
+}
+
 func parseConfigFromArgs() Config {
 	config := Config{}
 
@@ -72,8 +89,13 @@ func parseConfigFromArgs() Config {
 	flag.BoolVar(&config.showRules, "show-rules", true, "Whether to render RBAC access rules (e.g. \"get pods\") or not")
 	flag.BoolVar(&config.whoCan.showMatchedOnly, "show-matched-rules-only", false, "When running who-can, only show the matched rule instead of all rules specified in the role")
 
-	var namespaces string
-	flag.StringVar(&namespaces, "n", "", "The namespace to render (also supports multiple, comma-delimited namespaces)")
+	var nsFlag stringSliceFlag
+	flag.Var(&nsFlag, "n", "The namespace to render (can be specified multiple times or comma-delimited)")
+	flag.Var(&nsFlag, "namespace", "The namespace to render (can be specified multiple times or comma-delimited)")
+
+	var allNamespaces bool
+	flag.BoolVar(&allNamespaces, "A", false, "Render all namespaces")
+	flag.BoolVar(&allNamespaces, "all-namespaces", false, "Render all namespaces")
 
 	var ignoredPrefixes string
 	flag.StringVar(&ignoredPrefixes, "ignore-prefixes", "system:", "Comma-delimited list of (Cluster)Role(Binding) prefixes to ignore ('none' to not ignore anything)")
@@ -92,6 +114,7 @@ func parseConfigFromArgs() Config {
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | rback > result.dot\n")
 		fmt.Fprintf(os.Stderr, "  kubectl get ... -o json | rback -n default\n")
+		fmt.Fprintf(os.Stderr, "  kubectl get ... -o json | rback -n ns1 -n ns2\n")
 		fmt.Fprintf(os.Stderr, "  kubectl get ... -o json | rback sa my-service-account\n")
 		fmt.Fprintf(os.Stderr, "  kubectl get ... -o json | rback who-can create pods\n")
 	}
@@ -101,6 +124,20 @@ func parseConfigFromArgs() Config {
 	if showVersion {
 		fmt.Printf("rback %s (commit: %s, date: %s)\n", version, commit, date)
 		os.Exit(0)
+	}
+
+	if allNamespaces || len(nsFlag) == 0 {
+		config.namespaces = []string{""}
+	} else {
+		config.namespaces = nsFlag
+	}
+
+	if ignoredPrefixes != "none" {
+		for _, prefix := range strings.Split(ignoredPrefixes, ",") {
+			if trimmed := strings.TrimSpace(prefix); trimmed != "" {
+				config.ignoredPrefixes = append(config.ignoredPrefixes, trimmed)
+			}
+		}
 	}
 
 	if flag.NArg() > 0 {
@@ -123,11 +160,6 @@ func parseConfigFromArgs() Config {
 		}
 	}
 
-	config.namespaces = strings.Split(namespaces, ",")
-
-	if ignoredPrefixes != "none" {
-		config.ignoredPrefixes = strings.Split(ignoredPrefixes, ",")
-	}
 	return config
 }
 

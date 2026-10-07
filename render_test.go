@@ -74,6 +74,9 @@ func TestGenGraph_NamespaceFilter(t *testing.T) {
 	if strings.Contains(dot, "cluster-admin-binding") {
 		t.Errorf("cluster-admin-binding should not be rendered when filtering to namespace1")
 	}
+	if !strings.Contains(dot, "crb-sa-binding") {
+		t.Errorf("crb-sa-binding targeting my-sa in namespace1 should be rendered")
+	}
 }
 
 func TestGenGraph_FocusServiceAccount(t *testing.T) {

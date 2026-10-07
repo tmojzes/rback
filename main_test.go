@@ -41,3 +41,19 @@ func TestVersionVariables(t *testing.T) {
 		t.Errorf("version should not be empty")
 	}
 }
+
+func TestStringSliceFlag(t *testing.T) {
+	var flag stringSliceFlag
+	_ = flag.Set("ns1, ns2")
+	_ = flag.Set("ns3")
+
+	expected := []string{"ns1", "ns2", "ns3"}
+	if len(flag) != len(expected) {
+		t.Fatalf("expected %d elements, got %d", len(expected), len(flag))
+	}
+	for i, v := range expected {
+		if flag[i] != v {
+			t.Errorf("expected [%d] = %s, got %s", i, v, flag[i])
+		}
+	}
+}

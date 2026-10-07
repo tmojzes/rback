@@ -18,17 +18,18 @@ func (r *Rback) genGraph() *dot.Graph {
 				continue
 			}
 
-			gns := newNamespaceSubgraph(g, binding.namespace)
-
-			bindingNode := r.newBindingNode(gns, binding)
-			roleNode := r.newRoleAndRulesNodePair(gns, binding.namespace, binding.role)
-
-			newBindingToRoleEdge(bindingNode, roleNode)
-
 			saNodes := []dot.Node{}
 			for _, subject := range binding.subjects {
 				renderSubject := (r.config.resourceKind != kindServiceAccount) ||
 					(r.namespaceSelected(subject.namespace) && r.resourceNameSelected(subject.name))
+
+				// If filtering by specific namespace(s) and this is a cluster-scoped binding,
+				// only render subjects belonging to the selected namespace(s):
+				if !r.allNamespaces() && binding.namespace == "" {
+					if subject.kind != "ServiceAccount" || !r.namespaceSelected(subject.namespace) {
+						renderSubject = false
+					}
+				}
 
 				if renderSubject {
 					gns := newNamespaceSubgraph(g, subject.namespace)
@@ -36,6 +37,18 @@ func (r *Rback) genGraph() *dot.Graph {
 					saNodes = append(saNodes, subjectNode)
 				}
 			}
+
+			// When filtering by namespace, do not render a cluster-scoped binding if none of its subjects are in the selected namespace:
+			if !r.allNamespaces() && binding.namespace == "" && len(saNodes) == 0 {
+				continue
+			}
+
+			gns := newNamespaceSubgraph(g, binding.namespace)
+
+			bindingNode := r.newBindingNode(gns, binding)
+			roleNode := r.newRoleAndRulesNodePair(gns, binding.namespace, binding.role)
+
+			newBindingToRoleEdge(bindingNode, roleNode)
 
 			for _, saNode := range saNodes {
 				newSubjectToBindingEdge(saNode, bindingNode)
@@ -133,7 +146,15 @@ func (r *Rback) renderLegend(g *dot.Graph) {
 func (r *Rback) shouldRenderBinding(binding Binding) bool {
 	switch r.config.resourceKind {
 	case "":
-		return r.namespaceSelected(binding.namespace)
+		if r.allNamespaces() || r.namespaceSelected(binding.namespace) {
+			return true
+		}
+		for _, subject := range binding.subjects {
+			if subject.kind == "ServiceAccount" && r.namespaceSelected(subject.namespace) {
+				return true
+			}
+		}
+		return false
 	case kindRoleBinding:
 		return r.namespaceSelected(binding.namespace) && r.resourceNameSelected(binding.name)
 	case kindClusterRoleBinding:

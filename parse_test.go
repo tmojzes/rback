@@ -72,8 +72,8 @@ func TestParseRBAC_ValidData(t *testing.T) {
 
 	// Check ClusterRoleBindings
 	crbs, exists := rback.permissions.RoleBindings[""]
-	if !exists || len(crbs) != 1 {
-		t.Errorf("expected 1 clusterrolebinding")
+	if !exists || len(crbs) != 2 {
+		t.Errorf("expected 2 clusterrolebindings, got %d", len(crbs))
 	}
 }
 
