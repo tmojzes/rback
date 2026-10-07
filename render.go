@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/emicklei/dot"
@@ -255,9 +256,9 @@ func (w *WhoCan) matchesAnyRuleIn(role Role) bool {
 }
 
 func (w *WhoCan) matches(rule Rule) bool {
-	return (contains(rule.verbs, "*") || contains(rule.verbs, w.verb)) &&
-		(contains(rule.resources, "*") || contains(rule.resources, w.resourceKind)) &&
-		(w.resourceName == "" || len(rule.resourceNames) == 0 || contains(rule.resourceNames, w.resourceName)) // TODO: also check API group!
+	return (slices.Contains(rule.verbs, "*") || slices.Contains(rule.verbs, w.verb)) &&
+		(slices.Contains(rule.resources, "*") || slices.Contains(rule.resources, w.resourceKind)) &&
+		(w.resourceName == "" || len(rule.resourceNames) == 0 || slices.Contains(rule.resourceNames, w.resourceName)) // TODO: also check API group!
 }
 
 func (r *Rback) newRulesNode(g *dot.Graph, namespace, roleName string, highlight bool) *dot.Node {
@@ -307,7 +308,7 @@ func (r *Rule) toHumanReadableString() string {
 }
 
 func (r *Rback) resourceNameSelected(name string) bool {
-	return r.allResourceNames() || contains(r.config.resourceNames, name)
+	return r.allResourceNames() || slices.Contains(r.config.resourceNames, name)
 }
 
 func (r *Rback) allResourceNames() bool {
@@ -315,18 +316,9 @@ func (r *Rback) allResourceNames() bool {
 }
 
 func (r *Rback) namespaceSelected(ns string) bool {
-	return r.allNamespaces() || contains(r.config.namespaces, ns)
+	return r.allNamespaces() || slices.Contains(r.config.namespaces, ns)
 }
 
 func (r *Rback) allNamespaces() bool {
 	return len(r.config.namespaces) == 1 && r.config.namespaces[0] == ""
-}
-
-func contains(values []string, value string) bool {
-	for _, v := range values {
-		if value == v {
-			return true
-		}
-	}
-	return false
 }

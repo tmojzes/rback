@@ -1,6 +1,11 @@
 # rback
 
-A simple "RBAC in Kubernetes" visualizer. No matter how complex the setup, `rback` queries all RBAC related information of an Kubernetes cluster in constant time and generates a graph representation of service accounts, (cluster) roles, and the respective access rules in [dot](https://www.graphviz.org/doc/info/lang.html) format.
+[![CI](https://github.com/tmojzes/rback/actions/workflows/ci.yml/badge.svg)](https://github.com/tmojzes/rback/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tmojzes/rback)](https://goreportcard.com/report/github.com/tmojzes/rback)
+[![GitHub Release](https://img.shields.io/github/v/release/tmojzes/rback)](https://github.com/tmojzes/rback/releases)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
+A simple "RBAC in Kubernetes" visualizer. No matter how complex the setup, `rback` queries all RBAC related information of a Kubernetes cluster in constant time and generates a graph representation of service accounts, (cluster) roles, and the respective access rules in [Graphviz dot](https://www.graphviz.org/doc/info/lang.html) format.
 
 For example, here is an Amazon EKS cluster as seen by `rback`:
 
@@ -10,126 +15,217 @@ Another example would be a local K3S cluster:
 
 ![K3S cluster](examples/k3s.dot.png)
 
-Here in action in the [Katacoda Kubernetes playground](https://www.katacoda.com/courses/kubernetes/playground):
+See the [examples/](examples/) directory for more samples.
 
-![Katacoda](examples/katacoda.dot.png)
+---
 
-See for more details the [examples/](examples/) directory …
+## Installation
 
-## Install
+`rback` requires access to a Kubernetes cluster (e.g., EKS, GKE, AKS, k3s, kind, Minikube) and `kubectl` configured locally.
 
-`rback` depends on you having access to a Kubernetes cluster, either in the cloud (like Amazon EKS)
-or locally (k3s, kind, Minikube, Docker for Desktop) as well as  `kubectl` installed and configured, locally.
+### Pre-built Binaries
 
-
-To install it for macOS, do:
+Download the latest pre-compiled binary for your architecture (macOS Intel & Apple Silicon, Linux amd64 & arm64, Windows) from the [Releases page](https://github.com/tmojzes/rback/releases):
 
 ```sh
-$ curl -sL https://github.com/team-soteria/rback/releases/download/v0.4.0/macos_rback -o rback
-$ chmod +x rback && sudo mv rback /usr/local/bin
+# Example for macOS (Apple Silicon / arm64)
+curl -sL https://github.com/tmojzes/rback/releases/latest/download/rback_darwin_arm64.tar.gz | tar -xz
+chmod +x rback && sudo mv rback /usr/local/bin
+
+# Example for Linux (x86_64 / amd64)
+curl -sL https://github.com/tmojzes/rback/releases/latest/download/rback_linux_amd64.tar.gz | tar -xz
+chmod +x rback && sudo mv rback /usr/local/bin
 ```
 
-To install it for Linux, do:
+### Via `go install`
+
+If you have Go installed:
 
 ```sh
-$ curl -sL https://github.com/team-soteria/rback/releases/download/v0.4.0/linux_rback -o rback
-$ chmod +x rback && sudo mv rback /usr/local/bin
+go install github.com/tmojzes/rback@latest
 ```
 
+### Building From Source
 
-You can also build it from source, with Go 1.12 like so:
+Clone the repository and build using [Task](https://taskfile.dev):
 
 ```sh
-$ git clone https://github.com/team-soteria/rback.git && cd rback
-$ go build
+git clone https://github.com/tmojzes/rback.git
+cd rback
+task build
+# or install directly to $GOPATH/bin:
+task install
 ```
 
-## Using rback directly
+> [!NOTE]
+> If you do not have `task` installed globally, you can invoke it directly via Go's tool mechanism:
+> ```sh
+> go tool task build
+> ```
 
-Run `rback` locally against the target cluster and store its output in a `.dot` file like shown in the following:
+---
+
+## Using `rback` Directly
+
+Query the cluster using `kubectl` and pipe the JSON output to `rback`:
 
 ```sh
-$ kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | rback > result.dot
+kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | rback > result.dot
 ```
 
-Now that you have `result.dot`, you can render the graph either online or locally.
-
-### Render online
-
-There are plenty of Graphviz (`dot`) online visualization tools available, for example, use [magjac.com/graphviz-visual-editor/](http://magjac.com/graphviz-visual-editor/) for interaction or the simpler [dreampuf.github.io/GraphvizOnline](https://dreampuf.github.io/GraphvizOnline/). Head over there and paste the output of `rback` into it.
-
-### Render locally
-
-Install [Graphviz](https://www.graphviz.org/), for example, on macOS you can do `brew install graphviz`. Then you can do the following (on macOS):
+Alternatively, read from a saved file using `-f`:
 
 ```sh
-$ kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | rback | dot -Tpng  > /tmp/rback.png && open /tmp/rback.png
+rback -f rbac-dump.json > result.dot
 ```
 
+### Rendering the Graph
 
-## Using rback as a kubectl plugin
+#### Render Locally
 
-There is also a very crude first version of a kubectl plugin in https://github.com/team-soteria/rback/blob/master/kubectl-plugin/kubectl-rback. Add the file to your path, ensure it is executable and modify it to suit your environment. Then, you'll be able to simply run:
+Install [Graphviz](https://www.graphviz.org/) (`brew install graphviz` on macOS or `sudo apt-get install graphviz` on Linux):
+
 ```sh
-$ kubectl rback
+# On macOS:
+kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | rback | dot -Tpng > /tmp/rback.png && open /tmp/rback.png
+
+# On Linux:
+kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | rback | dot -Tpng > /tmp/rback.png && xdg-open /tmp/rback.png
 ```
-This will generate the `.dot` file, render it using GraphViz (must be installed on your system) and open the rendered image using `xgd-open`. 
 
-We welcome contributions to make the plugin work in other environments.
+#### Render Online
 
-## More usage examples
+You can paste the generated `.dot` content directly into browser-based Graphviz viewers such as:
+- [magjac.com/graphviz-visual-editor/](http://magjac.com/graphviz-visual-editor/)
+- [dreampuf.github.io/GraphvizOnline](https://dreampuf.github.io/GraphvizOnline/)
 
-By default, `rback` shows all RBAC resources in your cluster, but you can also focus on a single namespace by using the `-n` switch. The switch supports multiple namespaces as well:
+---
+
+## Using `rback` as a `kubectl` Plugin
+
+A plugin script is provided in [`kubectl-plugin/kubectl-rback`](kubectl-plugin/kubectl-rback). To install:
+
+1. Copy or symlink `kubectl-plugin/kubectl-rback` into your `PATH` (e.g. `/usr/local/bin/kubectl-rback`).
+2. Ensure it is executable (`chmod +x /usr/local/bin/kubectl-rback`).
+3. Ensure both `rback` and Graphviz `dot` are in your `PATH`.
+
+Now run:
+
 ```sh
-$ kubectl rback -n my-namespace
-$ kubectl rback -n my-namespace1,my-namespace2
+kubectl rback
 ```
 
-If you're particularly interested in a single `ServiceAccount`, you can run:
+This will automatically query the cluster, generate the graph, render a PNG, and open it in your default image viewer (supporting both macOS and Linux).
+
+---
+
+## Usage Examples
+
+### Filtering by Namespace
+
+Focus on a single namespace or comma-separated list of namespaces:
+
 ```sh
-$ kubectl rback serviceaccount my-service-account
-or
-$ kubectl rback sa my-service-account
+kubectl rback -n my-namespace
+kubectl rback -n my-namespace1,my-namespace2
 ```
-This makes the specified `ServiceAccount` the focal point of the graph, meaning that only it and directly-related RBAC resources are shown. 
 
-Instead of `ServiceAccounts`, you can also focus on `Roles`, `RoleBindings`, `ClusterRoles` or `ClusterRoleBindings`:
+### Focusing on Specific Resources
+
+To focus on a specific resource and its direct relationships:
+
 ```sh
-$ kubectl rback role my-role
-$ kubectl rback clusterrole my-cluster-role
-$ kubectl rback rolebinding my-role-binding
-$ kubectl rback clusterrolebinding my-cluster-role-binding
+# ServiceAccounts:
+kubectl rback serviceaccount my-service-account
+kubectl rback sa my-service-account
+
+# Roles & ClusterRoles:
+kubectl rback role my-role
+kubectl rback clusterrole my-cluster-role
+
+# RoleBindings & ClusterRoleBindings:
+kubectl rback rolebinding my-role-binding
+kubectl rback clusterrolebinding my-cluster-role-binding
 ```
-You can also use the abbreviated form:
+
+Short aliases are supported: `sa`, `r`, `cr`, `rb`, `crb`, `u` (user), `g` (group).
+
+You can also specify multiple resource names:
+
 ```sh
-$ kubectl rback r my-role
-$ kubectl rback cr my-cluster-role
-$ kubectl rback rb my-role-binding
-$ kubectl rback crb my-cluster-role-binding
+kubectl rback r my-role1 my-role2
 ```
 
-If you'd like to inspect more than one resource, you can specify multiple resource names:
+### Checking Permissions (`who-can`)
+
+Find out who can perform an action in the cluster:
+
 ```sh
-$ kubectl rback r my-role1 my-role2
+kubectl rback who-can create pods
+kubectl rback who-can get secrets
+kubectl rback who-can list services
 ```
 
-In addition to focusing on a specific resource, `rback` can also show you who can perform a particular action. For example, if you'd like to see who can create pods, run:
+This renders matched `(Cluster)Roles`, related bindings, and subjects (`ServiceAccounts`, `Users`, `Groups`). The matched rule is highlighted in bold.
+
+To only show the matched rules instead of all rules in the role:
+
 ```sh
-$ kubectl rback who-can create pods
+kubectl rback --show-matched-rules-only who-can create pods
 ```
-This renders the matched `(Cluster)Roles`, all directly-related `(Cluster)RoleBindings` and subjects (`ServiceAccounts`, `Users` and `Groups`). The matched access rule will be shown in bold font. 
 
-Whether using `who-can` or not, you can turn off the rendering of the (possibly long) list of access rules with:
+### Toggling Rules & Legend
+
+Hide access rules completely:
+
 ```sh
-$ kubectl rback --show-rules=false
+kubectl rback --show-rules=false
 ```
 
-When using `who-can`, you can also tell `rback` to only show matched rules instead of hiding rules completely:
+Hide the graph legend:
+
 ```sh
-$ kubectl rback --show-matched-rules-only who-can create pods
+kubectl rback --show-legend=false
 ```
 
-## How it works
+---
 
-To follow the "Do One Thing And Do It Well" Unix philosophy, `rback` does not call out to `kubectl` to read RBAC resources (although initial versions did do that) and does not actually render the image. All it does is parse a list of RBAC resources passed in through `stdin`, and then prints out a GraphViz `.dot` file to `stdout` using the [github.com/emicklei/dot](https://github.com/emicklei/dot) package.
+## Development
 
+All development tasks are managed via [Task](https://taskfile.dev):
+
+```sh
+# List available tasks
+task --list
+
+# Build local binary
+task build
+
+# Run unit tests with race detection
+task test
+
+# Generate test coverage report
+task test:coverage
+
+# Run linter / go vet
+task lint
+
+# Install binary to $GOPATH/bin
+task install
+
+# Clean build artifacts
+task clean
+```
+
+> [!NOTE]
+> If you don't have `task` installed, prepend `go tool` (e.g. `go tool task test`).
+
+---
+
+## Attribution & License
+
+`rback` was originally created by [Michael Hausenblas](https://github.com/mhausenblas) and maintained under `team-soteria/rback`.
+
+This fork is actively maintained by [Tomáš Mojzeš](https://github.com/tmojzes).
+
+Distributed under the [Apache License 2.0](LICENSE).

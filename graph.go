@@ -131,11 +131,3 @@ func edge(from dot.Node, to dot.Node) dot.Edge {
 		return existingEdges[0]
 	}
 }
-
-func iff(condition bool, string1, string2 string) string {
-	if condition {
-		return string1
-	} else {
-		return string2
-	}
-}

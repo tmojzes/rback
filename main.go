@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+var (
+	version = "v0.5.0-dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 type Rback struct {
 	config      Config
 	permissions Permissions
@@ -34,18 +40,21 @@ func main() {
 
 	var err error
 	reader := os.Stdin
+	sourceName := "stdin"
 	if config.inputFile != "" {
+		sourceName = config.inputFile
 		reader, err = os.Open(config.inputFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Can't open file %s: %v\n", config.inputFile, err)
-			os.Exit(-1)
+			os.Exit(1)
 		}
+		defer reader.Close()
 	}
 
 	err = rback.parseRBAC(reader)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Can't parse RBAC resources from stdin: %v\n", err)
-		os.Exit(-1)
+		fmt.Fprintf(os.Stderr, "Can't parse RBAC resources from %s: %v\n", sourceName, err)
+		os.Exit(1)
 	}
 	g := rback.genGraph()
 	fmt.Println(g.String())
@@ -53,6 +62,11 @@ func main() {
 
 func parseConfigFromArgs() Config {
 	config := Config{}
+
+	var showVersion bool
+	flag.BoolVar(&showVersion, "v", false, "Print version information")
+	flag.BoolVar(&showVersion, "version", false, "Print version information")
+
 	flag.StringVar(&config.inputFile, "f", "", "The name of the file to use as input (otherwise stdin is used)")
 	flag.BoolVar(&config.showLegend, "show-legend", true, "Whether to show the legend or not")
 	flag.BoolVar(&config.showRules, "show-rules", true, "Whether to render RBAC access rules (e.g. \"get pods\") or not")
@@ -63,13 +77,37 @@ func parseConfigFromArgs() Config {
 
 	var ignoredPrefixes string
 	flag.StringVar(&ignoredPrefixes, "ignore-prefixes", "system:", "Comma-delimited list of (Cluster)Role(Binding) prefixes to ignore ('none' to not ignore anything)")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: rback [OPTIONS] [COMMAND | RESOURCE_KIND RESOURCE_NAME...]\n\n")
+		fmt.Fprintf(os.Stderr, "A Kubernetes RBAC visualizer that queries RBAC resources and outputs a Graphviz dot graph.\n\n")
+		fmt.Fprintf(os.Stderr, "Options:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\nCommands:\n")
+		fmt.Fprintf(os.Stderr, "  who-can VERB RESOURCE [NAME]\n")
+		fmt.Fprintf(os.Stderr, "        Show subjects that can perform the specified action\n")
+		fmt.Fprintf(os.Stderr, "\nResource Kinds:\n")
+		fmt.Fprintf(os.Stderr, "  serviceaccount (sa), role (r), clusterrole (cr), rolebinding (rb),\n")
+		fmt.Fprintf(os.Stderr, "  clusterrolebinding (crb), user (u), group (g)\n")
+		fmt.Fprintf(os.Stderr, "\nExamples:\n")
+		fmt.Fprintf(os.Stderr, "  kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | rback > result.dot\n")
+		fmt.Fprintf(os.Stderr, "  kubectl get ... -o json | rback -n default\n")
+		fmt.Fprintf(os.Stderr, "  kubectl get ... -o json | rback sa my-service-account\n")
+		fmt.Fprintf(os.Stderr, "  kubectl get ... -o json | rback who-can create pods\n")
+	}
+
 	flag.Parse()
+
+	if showVersion {
+		fmt.Printf("rback %s (commit: %s, date: %s)\n", version, commit, date)
+		os.Exit(0)
+	}
 
 	if flag.NArg() > 0 {
 		if flag.Arg(0) == "who-can" {
 			if flag.NArg() < 3 {
-				fmt.Println("Usage: rback who-can VERB RESOURCE [NAME]")
-				os.Exit(-4)
+				fmt.Fprintln(os.Stderr, "Usage: rback who-can VERB RESOURCE [NAME]")
+				os.Exit(2)
 			}
 			config.resourceKind = kindRule
 			config.whoCan.verb = flag.Arg(1)

@@ -12,3 +12,6 @@
 *.out
 .DS_Store
 /release
+/bin
+/dist
+coverage.html

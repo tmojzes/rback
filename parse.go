@@ -10,7 +10,7 @@ import (
 
 // parseRBAC parses RBAC resources from the given reader and stores them in maps under r.permissions
 func (r *Rback) parseRBAC(reader io.Reader) (err error) {
-	var input map[string]interface{}
+	var input map[string]any
 
 	decoder := json.NewDecoder(reader)
 	err = decoder.Decode(&input)
@@ -18,32 +18,36 @@ func (r *Rback) parseRBAC(reader io.Reader) (err error) {
 		return err
 	}
 
-	if input["kind"] != "List" {
-		return fmt.Errorf("Expected kind=List, but found %v", input["kind"])
+	kind := getOrDefault[string](input, "kind", "")
+	if kind != "List" {
+		return fmt.Errorf("expected kind=List, but found %v", input["kind"])
 	}
 
 	r.permissions.ServiceAccounts = make(map[string]map[string]string)
 	r.permissions.Roles = make(map[string]map[string]Role)
 	r.permissions.RoleBindings = make(map[string]map[string]Binding)
 
-	items := input["items"].([]interface{})
-	for _, i := range items {
-		item := i.(map[string]interface{})
+	rawItems := getOrDefault[[]any](input, "items", nil)
+	for _, i := range rawItems {
+		item, ok := i.(map[string]any)
+		if !ok {
+			continue
+		}
 		nn := getNamespacedName(getMetadata(item))
 
-		if r.shouldIgnore(nn.name) {
+		if nn.name == "" || r.shouldIgnore(nn.name) {
 			continue
 		}
 
-		kind := item["kind"].(string)
+		itemKind := getOrDefault[string](item, "kind", "")
 
-		switch kind {
+		switch itemKind {
 		case "ServiceAccount":
 			if r.permissions.ServiceAccounts[nn.namespace] == nil {
 				r.permissions.ServiceAccounts[nn.namespace] = make(map[string]string)
 			}
-			json, _ := struct2json(item)
-			r.permissions.ServiceAccounts[nn.namespace][nn.name] = json
+			jsonStr, _ := struct2json(item)
+			r.permissions.ServiceAccounts[nn.namespace][nn.name] = jsonStr
 		case "RoleBinding", "ClusterRoleBinding":
 			if r.permissions.RoleBindings[nn.namespace] == nil {
 				r.permissions.RoleBindings[nn.namespace] = make(map[string]Binding)
@@ -55,7 +59,7 @@ func (r *Rback) parseRBAC(reader io.Reader) (err error) {
 			}
 			r.permissions.Roles[nn.namespace][nn.name] = toRole(item)
 		default:
-			log.Printf("Ignoring resource kind %s", kind)
+			log.Printf("Ignoring resource kind %s", itemKind)
 		}
 	}
 	return nil
@@ -70,57 +74,58 @@ func (r *Rback) shouldIgnore(name string) bool {
 	return false
 }
 
-func toKindNamespacedName(obj interface{}) KindNamespacedName {
-	o := obj.(map[string]interface{})
+func toKindNamespacedName(obj any) KindNamespacedName {
+	o, ok := obj.(map[string]any)
+	if !ok {
+		return KindNamespacedName{}
+	}
 	return KindNamespacedName{
-		kind:           o["kind"].(string),
+		kind:           getOrDefault[string](o, "kind", ""),
 		NamespacedName: getNamespacedName(o),
 	}
 }
 
-func getNamespacedName(metadataOrRef map[string]interface{}) NamespacedName {
+func getNamespacedName(metadataOrRef map[string]any) NamespacedName {
+	if metadataOrRef == nil {
+		return NamespacedName{}
+	}
 	return NamespacedName{
-		stringOrEmpty(metadataOrRef["namespace"]),
-		metadataOrRef["name"].(string),
+		namespace: getOrDefault[string](metadataOrRef, "namespace", ""),
+		name:      getOrDefault[string](metadataOrRef, "name", ""),
 	}
 }
 
-func getMetadata(obj map[string]interface{}) map[string]interface{} {
-	metadata := obj["metadata"].(map[string]interface{})
-	return metadata
+func getMetadata(obj map[string]any) map[string]any {
+	return getOrDefault[map[string]any](obj, "metadata", nil)
 }
 
-func toRole(rawRole map[string]interface{}) Role {
+func toRole(rawRole map[string]any) Role {
 	rules := []Rule{}
-	if rawRole["rules"] != nil {
-		rawRules := rawRole["rules"].([]interface{})
-		for _, r := range rawRules {
-			rules = append(rules, toRule(r))
-		}
+	rawRules := getOrDefault[[]any](rawRole, "rules", nil)
+	for _, r := range rawRules {
+		rules = append(rules, toRule(r))
 	}
 	return Role{
-		getNamespacedName(getMetadata(rawRole)),
-		rules,
+		NamespacedName: getNamespacedName(getMetadata(rawRole)),
+		rules:          rules,
 	}
 }
 
-func (r *Rback) toBinding(rawBinding map[string]interface{}) Binding {
+func (r *Rback) toBinding(rawBinding map[string]any) Binding {
 	subjects := []KindNamespacedName{}
-	if rawBinding["subjects"] != nil {
-		rawSubjects := rawBinding["subjects"].([]interface{})
-		for _, s := range rawSubjects {
-			subject := toKindNamespacedName(s)
-			if !r.shouldIgnore(subject.name) {
-				subjects = append(subjects, subject)
-			}
+	rawSubjects := getOrDefault[[]any](rawBinding, "subjects", nil)
+	for _, s := range rawSubjects {
+		subject := toKindNamespacedName(s)
+		if subject.name != "" && !r.shouldIgnore(subject.name) {
+			subjects = append(subjects, subject)
 		}
 	}
 
 	bindingNn := getNamespacedName(getMetadata(rawBinding))
 
-	roleRef := rawBinding["roleRef"].(map[string]interface{})
+	roleRef := getOrDefault[map[string]any](rawBinding, "roleRef", nil)
 	role := getNamespacedName(roleRef) // note: namespace is always "", since there is no namespace field in roleRef
-	if roleRef["kind"].(string) == "Role" {
+	if getOrDefault[string](roleRef, "kind", "") == "Role" {
 		role.namespace = bindingNn.namespace
 	}
 	return Binding{
@@ -130,15 +135,11 @@ func (r *Rback) toBinding(rawBinding map[string]interface{}) Binding {
 	}
 }
 
-func stringOrEmpty(i interface{}) string {
-	if i == nil {
-		return ""
+func toRule(rule any) Rule {
+	r, ok := rule.(map[string]any)
+	if !ok {
+		return Rule{}
 	}
-	return i.(string)
-}
-
-func toRule(rule interface{}) Rule {
-	r := rule.(map[string]interface{})
 	return Rule{
 		verbs:           toStringArray(r["verbs"]),
 		resources:       toStringArray(r["resources"]),
@@ -148,19 +149,25 @@ func toRule(rule interface{}) Rule {
 	}
 }
 
-func toStringArray(values interface{}) []string {
+func toStringArray(values any) []string {
 	if values == nil {
 		return []string{}
 	}
-	var strs []string
-	for _, v := range values.([]interface{}) {
-		strs = append(strs, v.(string))
+	rawSlice, ok := values.([]any)
+	if !ok {
+		return []string{}
+	}
+	strs := make([]string, 0, len(rawSlice))
+	for _, v := range rawSlice {
+		if s, ok := v.(string); ok {
+			strs = append(strs, s)
+		}
 	}
 	return strs
 }
 
 // struct2json turns a map into a JSON string
-func struct2json(s map[string]interface{}) (string, error) {
+func struct2json(s map[string]any) (string, error) {
 	str, err := json.Marshal(s)
 	if err != nil {
 		return "", err

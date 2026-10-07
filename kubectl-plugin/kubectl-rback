@@ -1,6 +1,38 @@
 #!/bin/bash
+set -euo pipefail
+
+if ! command -v rback &>/dev/null; then
+  echo "Error: 'rback' is not installed or not in PATH." >&2
+  echo "Please install rback first (e.g. 'go install github.com/tmojzes/rback@latest')." >&2
+  exit 1
+fi
+
+if ! command -v dot &>/dev/null; then
+  echo "Error: Graphviz 'dot' is not installed or not in PATH." >&2
+  echo "Please install Graphviz (e.g. 'brew install graphviz' on macOS or 'sudo apt-get install graphviz' on Linux)." >&2
+  exit 1
+fi
+
+case "$(uname -s)" in
+  Darwin*)
+    OPEN_CMD="open"
+    ;;
+  Linux*)
+    OPEN_CMD="xdg-open"
+    ;;
+  CYGWIN*|MINGW*|MSYS*)
+    OPEN_CMD="start"
+    ;;
+  *)
+    OPEN_CMD="xdg-open"
+    ;;
+esac
+
+TMP_DOT="$(mktemp "${TMPDIR:-/tmp}/rback-XXXXXX.dot")"
+TMP_PNG="${TMP_DOT%.dot}.png"
+trap 'rm -f "$TMP_DOT"' EXIT
 
 kubectl get sa,roles,rolebindings,clusterroles,clusterrolebindings --all-namespaces -o json | \
-	rback $@ > /tmp/rback.dot && \
-	dot /tmp/rback.dot -Tpng -Gsplines=spline -Kdot > /tmp/rback.png && \
-	xdg-open /tmp/rback.png
+  rback "$@" > "$TMP_DOT" && \
+  dot "$TMP_DOT" -Tpng -Gsplines=spline -Kdot > "$TMP_PNG" && \
+  $OPEN_CMD "$TMP_PNG"

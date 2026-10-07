@@ -1,0 +1,49 @@
+version: '3'
+
+vars:
+  BIN_NAME: rback
+  BIN_DIR: bin
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "v0.5.0-dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  DATE:
+    sh: date -u +'%Y-%m-%dT%H:%M:%SZ'
+  LDFLAGS: -s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.date={{.DATE}}
+
+tasks:
+  default:
+    desc: Build the binary
+    cmds:
+      - task: build
+
+  build:
+    desc: Build rback binary for current platform
+    cmds:
+      - go build -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.BIN_NAME}} .
+
+  test:
+    desc: Run unit tests with race detector
+    cmds:
+      - go test -v -race ./...
+
+  test:coverage:
+    desc: Run unit tests with coverage report
+    cmds:
+      - go test -v -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  lint:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  install:
+    desc: Install rback binary to GOPATH/bin
+    cmds:
+      - go install -ldflags "{{.LDFLAGS}}" .
+
+  clean:
+    desc: Clean build and coverage artifacts
+    cmds:
+      - rm -rf {{.BIN_DIR}} dist/ coverage.out coverage.html
